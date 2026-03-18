@@ -1,9 +1,11 @@
+import java.io.*;
 import java.util.*;
 
 /**
- * Reservation Domain Model
+ * Reservation class (Serializable)
  */
-class Reservation {
+class Reservation implements Serializable {
+    private static final long serialVersionUID = 1L;
     private String reservationId;
     private String guestName;
     private String roomType;
@@ -25,9 +27,10 @@ class Reservation {
 }
 
 /**
- * Thread-safe Inventory Service
+ * Room Inventory class (Serializable)
  */
-class RoomInventory {
+class RoomInventory implements Serializable {
+    private static final long serialVersionUID = 1L;
     private Map<String, Integer> inventory;
 
     public RoomInventory() {
@@ -37,10 +40,7 @@ class RoomInventory {
         inventory.put("Suite", 1);
     }
 
-    /**
-     * Thread-safe allocation
-     */
-    public synchronized boolean allocateRoom(String roomType) {
+    public boolean allocateRoom(String roomType) {
         int available = inventory.getOrDefault(roomType, 0);
         if (available > 0) {
             inventory.put(roomType, available - 1);
@@ -50,54 +50,120 @@ class RoomInventory {
         }
     }
 
-    /**
-     * Thread-safe rollback (cancellation)
-     */
-    public synchronized void releaseRoom(String roomType) {
+    public void releaseRoom(String roomType) {
         inventory.put(roomType, inventory.getOrDefault(roomType, 0) + 1);
     }
 
-    public synchronized void displayInventory() {
+    public void displayInventory() {
         System.out.println("\nCurrent Inventory:");
         for (String type : inventory.keySet()) {
             System.out.println(type + ": " + inventory.get(type));
         }
     }
+
+    public Map<String, Integer> getInventoryMap() {
+        return inventory;
+    }
+
+    public void setInventoryMap(Map<String, Integer> map) {
+        inventory = map;
+    }
 }
 
 /**
- * Booking Service (Thread-Safe)
+ * Booking Service with persistence
  */
-class BookingService {
-
-    private RoomInventory inventory;
-    private Map<String, Reservation> confirmedBookings;  // Shared map
+class BookingService implements Serializable {
+    private static final long serialVersionUID = 1L;
+    private Map<String, Reservation> confirmedBookings; // reservationId -> Reservation
+    private transient RoomInventory inventory; // transient because inventory serialized separately
 
     public BookingService(RoomInventory inventory) {
         this.inventory = inventory;
-        confirmedBookings = Collections.synchronizedMap(new LinkedHashMap<>());
+        confirmedBookings = new LinkedHashMap<>();
     }
 
-    /**
-     * Attempt booking (thread-safe)
-     */
-    public void bookRoom(Reservation reservation) {
-        synchronized (inventory) { // critical section
-            if (inventory.allocateRoom(reservation.getRoomType())) {
-                confirmedBookings.put(reservation.getReservationId(), reservation);
-                System.out.println(Thread.currentThread().getName() + " - Booking confirmed: " + reservation);
-            } else {
-                System.out.println(Thread.currentThread().getName() + " - Booking failed (no availability): " + reservation);
-            }
+    public void setInventory(RoomInventory inventory) {
+        this.inventory = inventory;
+    }
+
+    public boolean bookRoom(Reservation reservation) {
+        if (inventory.allocateRoom(reservation.getRoomType())) {
+            confirmedBookings.put(reservation.getReservationId(), reservation);
+            System.out.println("Booking confirmed: " + reservation);
+            return true;
+        } else {
+            System.out.println("Booking failed (no availability): " + reservation);
+            return false;
+        }
+    }
+
+    public void cancelBooking(String reservationId) {
+        Reservation r = confirmedBookings.remove(reservationId);
+        if (r != null) {
+            inventory.releaseRoom(r.getRoomType());
+            System.out.println("Booking cancelled: " + r);
+        } else {
+            System.out.println("Cannot cancel. Reservation not found: " + reservationId);
         }
     }
 
     public void displayConfirmedBookings() {
-        synchronized (confirmedBookings) {
-            System.out.println("\nConfirmed Bookings:");
-            for (Reservation r : confirmedBookings.values()) {
-                System.out.println(r);
-            }
+        System.out.println("\nConfirmed Bookings:");
+        for (Reservation r : confirmedBookings.values()) {
+            System.out.println(r);
+        }
+    }
+
+    public Map<String, Reservation> getConfirmedBookings() {
+        return confirmedBookings;
+    }
+
+    public void setConfirmedBookings(Map<String, Reservation> bookings) {
+        confirmedBookings = bookings;
+    }
+}
+
+/**
+ * Persistence Service
+ */
+class PersistenceService {
+
+    private static final String INVENTORY_FILE = "inventory.ser";
+    private static final String BOOKINGS_FILE = "bookings.ser";
+
+    public static void save(RoomInventory inventory, BookingService bookingService) {
+        try (ObjectOutputStream invOut = new ObjectOutputStream(new FileOutputStream(INVENTORY_FILE));
+             ObjectOutputStream bookOut = new ObjectOutputStream(new FileOutputStream(BOOKINGS_FILE))) {
+
+            invOut.writeObject(inventory.getInventoryMap());
+            bookOut.writeObject(bookingService.getConfirmedBookings());
+
+            System.out.println("\nSystem state saved successfully.");
+
+        } catch (IOException e) {
+            System.out.println("Error saving state: " + e.getMessage());
+        }
+    }
+
+    public static void restore(RoomInventory inventory, BookingService bookingService) {
+        try (ObjectInputStream invIn = new ObjectInputStream(new FileInputStream(INVENTORY_FILE));
+             ObjectInputStream bookIn = new ObjectInputStream(new FileInputStream(BOOKINGS_FILE))) {
+
+            @SuppressWarnings("unchecked")
+            Map<String, Integer> invMap = (Map<String, Integer>) invIn.readObject();
+            inventory.setInventoryMap(invMap);
+
+            @SuppressWarnings("unchecked")
+            Map<String, Reservation> bookings = (Map<String, Reservation>) bookIn.readObject();
+            bookingService.setConfirmedBookings(bookings);
+
+            System.out.println("\nSystem state restored successfully.");
+
+        } catch (FileNotFoundException e) {
+            System.out.println("\nNo previous saved state found. Starting fresh.");
+        } catch (IOException | ClassNotFoundException e) {
+            System.out.println("Error restoring state: " + e.getMessage());
         }
     }
 }
@@ -105,42 +171,28 @@ class BookingService {
 /**
  * Main Class
  */
-public class UseCase11ConcurrentBookingSimulation {
+public class UseCase12DataPersistenceRecovery {
 
-    public static void main(String[] args) throws InterruptedException {
+    public static void main(String[] args) {
 
+        // Step 1: Initialize system
         RoomInventory inventory = new RoomInventory();
         BookingService bookingService = new BookingService(inventory);
+        bookingService.setInventory(inventory);
 
-        // Simulated guest booking requests
-        List<Reservation> requests = Arrays.asList(
-                new Reservation("S1", "Alice", "Single"),
-                new Reservation("S2", "Bob", "Single"),
-                new Reservation("D1", "Charlie", "Double"),
-                new Reservation("SU1", "Diana", "Suite"),
-                new Reservation("S3", "Eve", "Single")  // May fail due to no availability
-        );
+        // Step 2: Restore previous state
+        PersistenceService.restore(inventory, bookingService);
 
-        // Create threads for each booking request
-        List<Thread> threads = new ArrayList<>();
-        for (Reservation r : requests) {
-            Thread t = new Thread(() -> bookingService.bookRoom(r));
-            t.setName("Thread-" + r.getGuestName());
-            threads.add(t);
-        }
+        // Step 3: Perform some bookings
+        bookingService.bookRoom(new Reservation("S1", "Alice", "Single"));
+        bookingService.bookRoom(new Reservation("S2", "Bob", "Single"));
+        bookingService.bookRoom(new Reservation("D1", "Charlie", "Double"));
 
-        // Start all threads concurrently
-        for (Thread t : threads) {
-            t.start();
-        }
-
-        // Wait for all threads to complete
-        for (Thread t : threads) {
-            t.join();
-        }
-
-        // Display final confirmed bookings and inventory
+        // Step 4: Display current state
         bookingService.displayConfirmedBookings();
         inventory.displayInventory();
+
+        // Step 5: Save system state
+        PersistenceService.save(inventory, bookingService);
     }
 }
