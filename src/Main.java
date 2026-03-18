@@ -1,50 +1,77 @@
-public class Main {
+public class Main {import java.util.HashMap;
+import java.util.Map;
 
     /**
-     * Main method - entry point of the Java application.
-     *
-     * @param args Command line arguments
+     * RoomInventory class encapsulates all inventory-related logic.
      */
-    public static void main(String[] args) {
+    class RoomInventory {
 
-        // Initialize room data
-        int room1Number = 101;
-        String room1Type = "Single";
-        double room1Price = 1000.0;
-        boolean room1Available = true;
+        // HashMap to store room type and available count
+        private Map<String, Integer> inventory;
 
-        int room2Number = 102;
-        String room2Type = "Double";
-        double room2Price = 1800.0;
-        boolean room2Available = true;
+        /**
+         * Constructor - initializes the inventory
+         */
+        public RoomInventory() {
+            inventory = new HashMap<>();
 
-        int room3Number = 103;
-        String room3Type = "Suite";
-        double room3Price = 3000.0;
-        boolean room3Available = false;
+            // Initialize room types with counts
+            inventory.put("Single", 5);
+            inventory.put("Double", 3);
+            inventory.put("Suite", 2);
+        }
 
-        // Display room details
-        System.out.println("Hotel Room Initialization");
-        System.out.println("----------------------------");
+        /**
+         * Get availability of a specific room type
+         */
+        public int getAvailability(String roomType) {
+            return inventory.getOrDefault(roomType, 0);
+        }
 
-        System.out.println("Room Number: " + room1Number);
-        System.out.println("Type: " + room1Type);
-        System.out.println("Price: " + room1Price);
-        System.out.println("Available: " + room1Available);
-        System.out.println();
+        /**
+         * Update availability (increase/decrease)
+         */
+        public void updateAvailability(String roomType, int countChange) {
+            int current = inventory.getOrDefault(roomType, 0);
+            inventory.put(roomType, current + countChange);
+        }
 
-        System.out.println("Room Number: " + room2Number);
-        System.out.println("Type: " + room2Type);
-        System.out.println("Price: " + room2Price);
-        System.out.println("Available: " + room2Available);
-        System.out.println();
+        /**
+         * Display full inventory
+         */
+        public void displayInventory() {
+            System.out.println("Current Room Inventory:");
+            System.out.println("--------------------------");
 
-        System.out.println("Room Number: " + room3Number);
-        System.out.println("Type: " + room3Type);
-        System.out.println("Price: " + room3Price);
-        System.out.println("Available: " + room3Available);
-
-        // End message
-        System.out.println("\nRoom initialization completed successfully.");
+            for (Map.Entry<String, Integer> entry : inventory.entrySet()) {
+                System.out.println(entry.getKey() + " Rooms: " + entry.getValue());
+            }
+        }
     }
-}
+
+    /**
+     * Main class - entry point
+     */
+    public class UseCase3InventorySetup {
+
+        public static void main(String[] args) {
+
+            // Initialize inventory
+            RoomInventory inventory = new RoomInventory();
+
+            // Display initial inventory
+            inventory.displayInventory();
+
+            // Simulate booking (reduce availability)
+            System.out.println("\nBooking 1 Single Room...");
+            inventory.updateAvailability("Single", -1);
+
+            // Simulate cancellation (increase availability)
+            System.out.println("Cancelling 1 Suite Room...");
+            inventory.updateAvailability("Suite", 1);
+
+            // Display updated inventory
+            System.out.println("\nUpdated Inventory:");
+            inventory.displayInventory();
+        }
+    }
