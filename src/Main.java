@@ -1,84 +1,102 @@
 import java.util.*;
 
 
-class Service {
-    private String name;
-    private double cost;
+class Reservation {
+    private String reservationId;
+    private String guestName;
+    private String roomType;
 
-    public Service(String name, double cost) {
-        this.name = name;
-        this.cost = cost;
+    public Reservation(String reservationId, String guestName, String roomType) {
+        this.reservationId = reservationId;
+        this.guestName = guestName;
+        this.roomType = roomType;
     }
 
-    public String getName() {
-        return name;
+    public String getReservationId() {
+        return reservationId;
     }
 
-    public double getCost() {
-        return cost;
+    public String getGuestName() {
+        return guestName;
+    }
+
+    public String getRoomType() {
+        return roomType;
+    }
+
+    @Override
+    public String toString() {
+        return "ReservationID: " + reservationId +
+                " | Guest: " + guestName +
+                " | Room Type: " + roomType;
     }
 }
 
 /**
- * Add-On Service Manager
+ * Booking History - stores confirmed reservations
  */
-class AddOnServiceManager {
+class BookingHistory {
 
-    // Map: Reservation ID -> List of Services
-    private Map<String, List<Service>> reservationServices;
+    private List<Reservation> confirmedBookings;
 
-    public AddOnServiceManager() {
-        reservationServices = new HashMap<>();
+    public BookingHistory() {
+        confirmedBookings = new ArrayList<>();
     }
 
     /**
-     * Add service to a reservation
+     * Add a confirmed reservation to history
      */
-    public void addService(String reservationId, Service service) {
-
-        reservationServices
-                .computeIfAbsent(reservationId, k -> new ArrayList<>())
-                .add(service);
-
-        System.out.println("Added Service: " + service.getName() +
-                " to Reservation: " + reservationId);
+    public void addReservation(Reservation reservation) {
+        confirmedBookings.add(reservation);
     }
 
     /**
-     * Display services for a reservation
+     * Retrieve all bookings
      */
-    public void displayServices(String reservationId) {
+    public List<Reservation> getAllBookings() {
+        return Collections.unmodifiableList(confirmedBookings);
+    }
+}
 
-        System.out.println("\nServices for Reservation: " + reservationId);
-        System.out.println("-----------------------------------");
+/**
+ * Booking Report Service - generates summaries
+ */
+class BookingReportService {
 
-        List<Service> services = reservationServices.get(reservationId);
+    private BookingHistory history;
 
-        if (services == null || services.isEmpty()) {
-            System.out.println("No add-on services selected.");
-            return;
-        }
+    public BookingReportService(BookingHistory history) {
+        this.history = history;
+    }
 
-        for (Service s : services) {
-            System.out.println(s.getName() + " - " + s.getCost());
+    /**
+     * Display all confirmed bookings
+     */
+    public void displayAllBookings() {
+        System.out.println("\nBooking History Report:");
+        System.out.println("----------------------------");
+
+        for (Reservation r : history.getAllBookings()) {
+            System.out.println(r);
         }
     }
 
     /**
-     * Calculate total cost of services
+     * Display summary by room type
      */
-    public double calculateTotalCost(String reservationId) {
+    public void displaySummaryByRoomType() {
+        Map<String, Integer> summary = new HashMap<>();
 
-        List<Service> services = reservationServices.get(reservationId);
-        double total = 0.0;
-
-        if (services != null) {
-            for (Service s : services) {
-                total += s.getCost();
-            }
+        for (Reservation r : history.getAllBookings()) {
+            summary.put(r.getRoomType(),
+                    summary.getOrDefault(r.getRoomType(), 0) + 1);
         }
 
-        return total;
+        System.out.println("\nBooking Summary by Room Type:");
+        System.out.println("----------------------------");
+        for (String type : summary.keySet()) {
+            System.out.println(type + ": " + summary.get(type));
+        }
     }
 }
 
@@ -89,30 +107,20 @@ public class Main {
 
     public static void main(String[] args) {
 
-        // Simulated reservation IDs (from Use Case 6)
-        String reservation1 = "S1";
-        String reservation2 = "D2";
+        // Step 1: Initialize booking history
+        BookingHistory history = new BookingHistory();
 
-        // Initialize service manager
-        AddOnServiceManager manager = new AddOnServiceManager();
+        // Step 2: Simulate confirmed reservations
+        history.addReservation(new Reservation("S1", "Alice", "Single"));
+        history.addReservation(new Reservation("S2", "Bob", "Single"));
+        history.addReservation(new Reservation("D1", "Eve", "Double"));
+        history.addReservation(new Reservation("SU1", "Diana", "Suite"));
 
-        // Guest selects add-on services
-        manager.addService(reservation1, new Service("Breakfast", 200));
-        manager.addService(reservation1, new Service("Airport Pickup", 500));
+        // Step 3: Initialize reporting service
+        BookingReportService reportService = new BookingReportService(history);
 
-        manager.addService(reservation2, new Service("Extra Bed", 300));
-
-        // Display services
-        manager.displayServices(reservation1);
-        manager.displayServices(reservation2);
-
-        // Calculate total cost
-        System.out.println("\nTotal Add-On Cost for " + reservation1 + ": "
-                + manager.calculateTotalCost(reservation1));
-
-        System.out.println("Total Add-On Cost for " + reservation2 + ": "
-                + manager.calculateTotalCost(reservation2));
-
-        System.out.println("\nNote: Booking and inventory remain unchanged.");
+        // Step 4: Generate reports
+        reportService.displayAllBookings();
+        reportService.displaySummaryByRoomType();
     }
 }
